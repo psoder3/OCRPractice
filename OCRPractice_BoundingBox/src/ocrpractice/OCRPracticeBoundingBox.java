@@ -21,9 +21,8 @@ import javax.imageio.ImageIO;
  */
 public class OCRPracticeBoundingBox {
 
-	private static int debugCounter = 0;
-	private static int maxDebugCounter = 300;
     public static ArrayList<Integer> runLengths = new ArrayList();
+    public static ArrayList<Point> allVisitedPoints = new ArrayList();
     public static String GetPixelColor(File file, int x, int y)
     {
         String color = "";
@@ -53,9 +52,8 @@ public class OCRPracticeBoundingBox {
         String filename = s.nextLine();
         File f = new File(filename);
         File grayscale = changeToGrayScale(f);
-        ArrayList<Point> edgePoints = findEdges(grayscale);
-        edgePoints = fillGaps(edgePoints, grayscale);
-        drawEdgeFile(edgePoints, grayscale);
+        //ArrayList<Point> edgePoints = findEdges(grayscale);
+        //drawEdgeFile(edgePoints, grayscale);
     }
 
     private static File changeToGrayScale(File file) 
@@ -113,7 +111,7 @@ public class OCRPracticeBoundingBox {
                 image.setRGB(p.x,p.y,blackrgb);
             }
 
-            File outputfile = new File("thinnedEdges4.png");
+            File outputfile = new File("thinnedEdges.png");
             ImageIO.write(image, "png", outputfile);
             
         } catch (IOException ex) {
@@ -121,107 +119,85 @@ public class OCRPracticeBoundingBox {
         }
     }
     
-    public static ArrayList<Point> findEdges(File f)
+    
+    /*
+    Iterate. 
+    At each non white point create a list of points.
+    continuously add all touching non white points to list. 
+    Find bounding box of points in list. 
+    Save bounding points into a character object. 
+    Then search for the greatest average pixel value over a square bounding box. 
+    Use that pixel as starting point. 
+    Check bounding box 5 pixels up, 5 down, right, left, 
+    4 in diagonals for greatest average pixel value. (Greedy algorithm to choose next pixel direction). 
+    Don't include direction of point we just came from in possible next directions. 
+    Finish when we reach a point already included, or when we reach a box above with an all white top row, ect.
+    */
+    public static void findEdges(File f)
     {
-        ArrayList<Point> points = new ArrayList();
         try {
             BufferedImage image = ImageIO.read(f);
-            int imageWidth = image.getWidth();
-            int imageHeight = image.getHeight();
-            for (int i = 0; i < imageHeight; i++)
-            {
-                int j = 0;
-                while (j < imageWidth)
-                {
-                    int value = getPixelValue(j,i,image);
-                    
-                    // start of a run
-                    if (value < 255)
-                    {
-                        //ArrayList<Point> run = new ArrayList();
-                        int firstIndex = j;
-                        int lastIndex;
-                        while (j < imageWidth-1 && value < 255)
-                        {
-                            // add value to run
-                            //Point p = new Point();
-                            //p.x = j;
-                            //p.y = i;
-                            
-                            //run.add(p);
-                            
-                            j++;
-                            value = getPixelValue(j,i,image);
-                        }
-                        lastIndex = j-1;
-                        int averageJ = (firstIndex + lastIndex)/2;
-                        int runLength = lastIndex - firstIndex;
-                        runLengths.add(runLength);
-                        Point averagePoint = new Point(averageJ,i);
-                        //averagePoint.x = averageJ;
-                        //averagePoint.y = i;
-                        averagePoint.runLength = runLength;
-                        points.add(averagePoint);
-                    }
-                    
-                    j++;
-                }
-                
-            }
             
-            for (int i = 0; i < imageWidth; i++)
+            for (int i = 0; i < image.getHeight(); i++)
             {
-                int j = 0;
-                while (j < imageHeight)
+                for (int j = 0; j < image.getWidth(); j++)
                 {
-                    int value = getPixelValue(i,j,image);
-                    
-                    // start of a run
-                    if (value < 255)
+                    if (getPixelValue(j,i, image) < 255)
                     {
-                        //ArrayList<Point> run = new ArrayList();
-                        int firstIndex = j;
-                        int lastIndex;
-                        while (j < imageHeight-1 && value < 255)
+                        ArrayList<Point> visitedPoints = new ArrayList();
+                        visitedPoints.add(new Point(j,i));
+                        int previousNumberPoints;
+                        do
                         {
-                            // add value to run
-                            //Point p = new Point();
-                            //p.x = j;
-                            //p.y = i;
-                            
-                            //run.add(p);
-                            
-                            j++;
-                            value = getPixelValue(i,j,image);
-                        }
-                        lastIndex = j-1;
-                        int averageJ = (firstIndex + lastIndex)/2;
-                        Point averagePoint = new Point(i, averageJ);
-                        //averagePoint.y = averageJ;
-                        //averagePoint.x = i;
-                        int runLength = lastIndex - firstIndex;
-                        runLengths.add(runLength);
-                        averagePoint.runLength = runLength;
-
-                        points.add(averagePoint);
+                            previousNumberPoints = visitedPoints.size();
+                            visitedPoints = addNeighborPoints(visitedPoints, image);
+                        } while (visitedPoints.size() > previousNumberPoints);
+                        PixeledCharacter pc = createPixeledCharacterObject(visitedPoints);
+                        allVisitedPoints.addAll(visitedPoints);
                     }
-                    
-                    j++;
                 }
-                
-            }
-                    
-                    
+            }       
             
         } catch (IOException ex) {
             Logger.getLogger(OCRPracticeBoundingBox.class.getName()).log(Level.SEVERE, null, ex);
         }
         
-        points = removeLongRuns(points);
-        points = filterNoise(points);
-        return points;
     }
 
+    private static PixeledCharacter createPixeledCharacterObject(ArrayList<Point> visitedPoints) {
+        PixeledCharacter pc = new PixeledCharacter();
+        for (int ) 
+    }
+    
+    private static ArrayList<Point> addNeighborPoints(ArrayList<Point> visitedPoints, BufferedImage image) {
+        
+        for (Point p : visitedPoints)
+        {
+            Point pLeft = new Point(p.x-1,p.y);
+            Point pRight = new Point(p.x+1,p.y);
+            Point pUp = new Point(p.x,p.y-1);
+            Point pDown = new Point(p.x,p.y+1);
+            if (!visitedPoints.contains(pLeft) && getPixelValue(pLeft.x,pLeft.y,image) < 255)
+            {
+                visitedPoints.add(pLeft);
+            }
+            if (!visitedPoints.contains(pRight) && getPixelValue(pRight.x,pRight.y,image) < 255)
+            {
+                visitedPoints.add(pRight);
+            }
+            if (!visitedPoints.contains(pUp) && getPixelValue(pUp.x,pUp.y,image) < 255)
+            {
+                visitedPoints.add(pUp);
+            }
+            if (!visitedPoints.contains(pDown) && getPixelValue(pDown.x,pDown.y,image) < 255)
+            {
+                visitedPoints.add(pDown);
+            }
+        }
+        return visitedPoints;
+    }
+    
+    
     private static int getPixelValue(int x, int y, BufferedImage image) {
         //System.out.println(x + " " + y);
         if (x < 0 || y < 0)
@@ -298,272 +274,17 @@ public class OCRPracticeBoundingBox {
             }
             if (hasNeighbor)
             {
-                p.neighbors = numNeighbors;
+                p.neighbers = numNeighbors;
                 filteredPoints.add(p);
             }
         }
         return filteredPoints;
     }
 
-    private static ArrayList<Point> removeLongRuns(ArrayList<Point> points) {
-        ArrayList<Point> removedRuns = new ArrayList();
-        int total = 0;
-        for (Point p : points)
-        {
-            total += p.runLength;
-            //System.out.println(p.runLength);
-        }
-        int averageRunLength = total/points.size();
-        for (Point p : points)
-        {
-            if (p.runLength < averageRunLength)
-            {
-                removedRuns.add(p);
-            }
-            
-        }
-        return removedRuns;
-    }
-
-    private static ArrayList<Point> fillGaps(ArrayList<Point> edgePoints, File grayscale) {
-        
-        ArrayList<Point> leafPoints = new ArrayList();
-        // look at all points
-        for (Point p : edgePoints)
-        {
-            // if point is leaf
-            if (p.neighbors == 1)
-            {   
-                leafPoints.add(p);
-            }
-        }
-        // look at all leaf points
-        for (Point p : leafPoints)
-        {
-			System.out.println("Starting at ENDPOINT: " + p.x + " " + p.y);
-            if (p.neighbors > 1)
-            {   
-                //continue;
-            }
-            // look at all other leaf points
-            for (Point p2 : leafPoints)
-            {
-                // if it isn't the same point
-                if (!p.equals(p2))
-                {
-					System.out.println("testing TARGET POINT: " + p2.x + " " + p2.y);
-                    // if there is a complete path between the points
-                    Point finalPoint = pathExists(edgePoints, p,p2,grayscale);
-                    if (finalPoint != null)
-                    {
-                        // include path points as a perfect slope (perhaps later we'll do a weighted gradient path for more precision)
-                        includePathPoints(edgePoints,p,p2);
-                        // update how many neighbors these points now have so we don't mistake them for a gap later
-                        p.neighbors=2;
-                        p2.neighbors=2;
-						break;
-                    }
-                }
-            }
-        }
-        return edgePoints;
-    }
-
-    // returns the final point in the path after it is reached through recursion. It will have a backtrace member
-    private static Point recursePath(ArrayList<Point> edgePoints, Point currentPoint, Point targetPoint, int pathLength, BufferedImage image)
-    {
-		Point iterateBackCheckPoint = currentPoint.previousPoint;
-		while(iterateBackCheckPoint != null)
-		{
-			if (iterateBackCheckPoint.equals(currentPoint))
-			{
-				System.out.println("Already reached point in path. CurrentPoint: " + iterateBackCheckPoint.toString());
-				return null;
-			}
-			iterateBackCheckPoint = iterateBackCheckPoint.previousPoint;
-		}
-		
-		debugCounter++;
-		if (debugCounter > maxDebugCounter)
-		{
-			return null;
-		}
-        pathLength++;
-		System.out.println("path length: " + pathLength);
-		if (currentPoint.previousPoint != null)
-		{
-			//System.out.println("previousPoint: " + currentPoint.previousPoint.x + " " + currentPoint.previousPoint.y);
-		}
-		System.out.println("currentPoint: " + currentPoint.x + " " + currentPoint.y);
-        if (currentPoint.equals(targetPoint) && pathLength > 2)
-        {
-			System.out.println("Point equals target");
-            return currentPoint;
-        }
-        if (pathLength > 20)
-        {
-			System.out.println("path is greater than 20");
-            return null;
-        }
-        if (pathLength > 1 && edgePoints.contains(currentPoint))
-		{
-			System.out.println("point is already on master edge path");
-			return null;
-		}
-        if (getPixelValue(currentPoint.x,currentPoint.y,image) >= 255)
-        {
-			System.out.println("The original image has no color at this pixel");
-            return null;
-        }
-		
-		
-		
-		System.out.println("Starting right path");
-        Point rightPath = recursePath(edgePoints, new Point(currentPoint.x+1,currentPoint.y,currentPoint),targetPoint, pathLength, image);
-        if (rightPath != null)
-        {
-            return rightPath;
-        }
-		System.out.println("Starting left path");
-        Point leftPath = recursePath(edgePoints, new Point(currentPoint.x-1,currentPoint.y,currentPoint),targetPoint, pathLength, image);
-        if (leftPath != null)
-        {
-            return leftPath;
-        }
-		System.out.println("Starting down path");
-        Point downPath = recursePath(edgePoints, new Point(currentPoint.x,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
-        if (downPath != null)
-        {
-            return downPath;
-        }
-		System.out.println("Starting up path");
-        Point upPath = recursePath(edgePoints, new Point(currentPoint.x,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
-        if (upPath != null)
-        {
-            return upPath;
-        }
-		System.out.println("Starting down right path");
-        Point rightDownPath = recursePath(edgePoints, new Point(currentPoint.x+1,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
-        if (rightDownPath != null)
-        {
-            return rightDownPath;
-        }
-        System.out.println("Starting up right path");
-		Point rightUpPath = recursePath(edgePoints, new Point(currentPoint.x+1,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
-        if (rightUpPath != null)
-        {
-            return rightUpPath;
-        }
-        System.out.println("Starting down left path");
-		Point leftDownPath = recursePath(edgePoints, new Point(currentPoint.x-1,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
-        if (leftDownPath != null)
-        {
-            return leftDownPath;
-        }
-        System.out.println("Starting up left path");
-		Point leftUpPath = recursePath(edgePoints, new Point(currentPoint.x-1,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
-        if (leftUpPath != null)
-        {
-            return leftUpPath;
-        }
-
-        return null;
-    }
     
-    // Returns the final point that this path includes yet all points in path contain a pointer to the previous point
-    private static Point pathExists(ArrayList<Point> edgePoints, Point p, Point p2, File grayscale) {
-        try
-        {
-            BufferedImage image = ImageIO.read(grayscale);
-            
-            return recursePath(edgePoints, p,p2,0,image);
-        }
-        catch (Exception e)
-        {
-            return null;
-        }
-    }
 
-    private static void includePathPoints(ArrayList<Point> edgePoints, Point p, Point p2) {
-        // perform backtrace
-        Point currentPoint = p2.previousPoint;
-        
-        while (currentPoint != null && !currentPoint.equals(p))
-        {
-            currentPoint.neighbors = 2;
-            edgePoints.add(currentPoint);
-            currentPoint = currentPoint.previousPoint;
-        }
-    }
+    
 
-    private void recurseFindAllEndPoints(Item item)
-    {
-        // Base case: all items are found minus the starting item
-        if (item.distancesList.size() == itemList.size() - 1)
-        {
-            System.out.println("All items have been found starting from position: (" + item.getX() + "," + item.getY() + ")");
-            return;
-        }
-
-        ArrayList<RecurseObject> NextBreadth = new ArrayList();
-
-        for (int i = 0; i < Breadth.size(); i++)
-        {
-            RecurseObject ro = Breadth.get(i);
-            int X = (int)(ro.X +.5);
-            int Y = (int)(ro.Y+.5);
-            double currentDistanceFromOrigin = ro.currentDistanceFromOrigin;
-
-            if (Y > grid.length || X > grid[0].length || Y < 0 || X < 0 || gridCopy[Y][X].equals("-1"))
-            {
-                continue;
-            }
-
-
-
-
-            // check if this spot has an item
-            if (Integer.parseInt(gridCopy[Y][X]) > 0 && !item.getId().equals(gridCopy[Y][X]))
-            {
-                Item foundItem = null;
-                String id = gridCopy[Y][X];
-                for (Item findItem : itemList)
-                {
-                    if (findItem.getId().equals(id))
-                    {
-                        foundItem = findItem;
-                    }
-                }
-
-                System.out.println("Found item " + id + " from origin item " + item.getId());
-                // add it to current item's distancesList
-                item.distancesList.add(new ItemDistance(foundItem,currentDistanceFromOrigin));
-            }
-            // mark spot as visited
-            gridCopy[Y][X] = "-1";
-
-            double sqrtTwo = 1.41421356237;
-            // Add every direction from here to next level of breadth
-            //-----------------------------------------------------------
-            //UP
-            if (Y > 0 && !gridCopy[Y-1][X].equals("-1")) NextBreadth.add(new RecurseObject(X, Y-1, currentDistanceFromOrigin+1));
-            //Down
-            if (Y < gridCopy[0].length-1 && !gridCopy[Y+1][X].equals("-1")) NextBreadth.add(new RecurseObject(X, Y+1, currentDistanceFromOrigin+1));
-            //RIGHT
-            if (X < gridCopy.length-1 && !gridCopy[Y][X+1].equals("-1")) NextBreadth.add(new RecurseObject(X+1, Y, currentDistanceFromOrigin+1));
-            //LEFT
-            if (X > 0 && !gridCopy[Y][X-1].equals("-1")) NextBreadth.add(new RecurseObject(X-1, Y, currentDistanceFromOrigin+1));
-            //TOP RIGHT
-            if (Y > 0 && X < gridCopy.length-1 && !gridCopy[Y-1][X+1].equals("-1")) NextBreadth.add(new RecurseObject(X+1, Y-1, currentDistanceFromOrigin+sqrtTwo));
-            //TOP LEFT
-            if (Y > 0 && X > 0 && !gridCopy[Y-1][X-1].equals("-1")) NextBreadth.add(new RecurseObject(X-1, Y-1, currentDistanceFromOrigin+sqrtTwo));
-            //BOTTOM RIGHT
-            if (Y < gridCopy[0].length-1 && X < gridCopy.length-1 && !gridCopy[Y+1][X+1].equals("-1")) NextBreadth.add(new RecurseObject(X+1, Y+1, currentDistanceFromOrigin+sqrtTwo));
-            //BOTTOM LEFT
-            if (Y < gridCopy[0].length-1 && X > 0 && !gridCopy[Y+1][X-1].equals("-1")) NextBreadth.add(new RecurseObject(X-1, Y+1, currentDistanceFromOrigin+sqrtTwo));
-        }
-        Breadth = NextBreadth;
-        recurseFindAllItems(item);
-    }
+          
     
 }
