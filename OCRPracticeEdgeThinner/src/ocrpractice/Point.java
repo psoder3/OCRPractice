@@ -14,8 +14,9 @@ class Point {
     int y;
     int value;
     int runLength;
-    int neighbers = 0;
+    int neighbors = 0;
     Point previousPoint;
+	ArrayList<Point> distancesList;
     
     public Point(int x, int y, Point previous)
     {
