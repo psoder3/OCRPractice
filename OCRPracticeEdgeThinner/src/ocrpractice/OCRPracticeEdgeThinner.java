@@ -21,6 +21,8 @@ import javax.imageio.ImageIO;
  */
 public class OCRPracticeEdgeThinner {
 
+	private static int debugCounter = 0;
+	private static int maxDebugCounter = 300;
     public static ArrayList<Integer> runLengths = new ArrayList();
     public static String GetPixelColor(File file, int x, int y)
     {
@@ -296,7 +298,7 @@ public class OCRPracticeEdgeThinner {
             }
             if (hasNeighbor)
             {
-                p.neighbers = numNeighbors;
+                p.neighbors = numNeighbors;
                 filteredPoints.add(p);
             }
         }
@@ -330,7 +332,7 @@ public class OCRPracticeEdgeThinner {
         for (Point p : edgePoints)
         {
             // if point is leaf
-            if (p.neighbers == 1)
+            if (p.neighbors == 1)
             {   
                 leafPoints.add(p);
             }
@@ -338,9 +340,10 @@ public class OCRPracticeEdgeThinner {
         // look at all leaf points
         for (Point p : leafPoints)
         {
-            if (p.neighbers > 1)
+			System.out.println("Starting at ENDPOINT: " + p.x + " " + p.y);
+            if (p.neighbors > 1)
             {   
-                continue;
+                //continue;
             }
             // look at all other leaf points
             for (Point p2 : leafPoints)
@@ -348,15 +351,17 @@ public class OCRPracticeEdgeThinner {
                 // if it isn't the same point
                 if (!p.equals(p2))
                 {
+					System.out.println("testing TARGET POINT: " + p2.x + " " + p2.y);
                     // if there is a complete path between the points
-                    Point finalPoint = pathExists(p,p2,grayscale);
+                    Point finalPoint = pathExists(edgePoints, p,p2,grayscale);
                     if (finalPoint != null)
                     {
                         // include path points as a perfect slope (perhaps later we'll do a weighted gradient path for more precision)
                         includePathPoints(edgePoints,p,p2);
                         // update how many neighbors these points now have so we don't mistake them for a gap later
-                        p.neighbers=2;
-                        p2.neighbers=2;
+                        p.neighbors=2;
+                        p2.neighbors=2;
+						break;
                     }
                 }
             }
@@ -365,57 +370,98 @@ public class OCRPracticeEdgeThinner {
     }
 
     // returns the final point in the path after it is reached through recursion. It will have a backtrace member
-    private static Point recursePath(Point currentPoint, Point targetPoint, int pathLength, BufferedImage image)
+    private static Point recursePath(ArrayList<Point> edgePoints, Point currentPoint, Point targetPoint, int pathLength, BufferedImage image)
     {
+		Point iterateBackCheckPoint = currentPoint.previousPoint;
+		while(iterateBackCheckPoint != null)
+		{
+			if (iterateBackCheckPoint.equals(currentPoint))
+			{
+				System.out.println("Already reached point in path. CurrentPoint: " + iterateBackCheckPoint.toString());
+				return null;
+			}
+			iterateBackCheckPoint = iterateBackCheckPoint.previousPoint;
+		}
+		
+		debugCounter++;
+		if (debugCounter > maxDebugCounter)
+		{
+			return null;
+		}
         pathLength++;
-        if (currentPoint.equals(targetPoint))
+		System.out.println("path length: " + pathLength);
+		if (currentPoint.previousPoint != null)
+		{
+			//System.out.println("previousPoint: " + currentPoint.previousPoint.x + " " + currentPoint.previousPoint.y);
+		}
+		System.out.println("currentPoint: " + currentPoint.x + " " + currentPoint.y);
+        if (currentPoint.equals(targetPoint) && pathLength > 2)
         {
+			System.out.println("Point equals target");
             return currentPoint;
         }
         if (pathLength > 20)
         {
+			System.out.println("path is greater than 20");
             return null;
         }
+        if (pathLength > 1 && edgePoints.contains(currentPoint))
+		{
+			System.out.println("point is already on master edge path");
+			return null;
+		}
         if (getPixelValue(currentPoint.x,currentPoint.y,image) >= 255)
         {
+			System.out.println("The original image has no color at this pixel");
             return null;
         }
-        Point rightPath = recursePath(new Point(currentPoint.x+1,currentPoint.y,currentPoint),targetPoint, pathLength, image);
+		
+		
+		
+		System.out.println("Starting right path");
+        Point rightPath = recursePath(edgePoints, new Point(currentPoint.x+1,currentPoint.y,currentPoint),targetPoint, pathLength, image);
         if (rightPath != null)
         {
             return rightPath;
         }
-        Point leftPath = recursePath(new Point(currentPoint.x-1,currentPoint.y,currentPoint),targetPoint, pathLength, image);
+		System.out.println("Starting left path");
+        Point leftPath = recursePath(edgePoints, new Point(currentPoint.x-1,currentPoint.y,currentPoint),targetPoint, pathLength, image);
         if (leftPath != null)
         {
             return leftPath;
         }
-        Point downPath = recursePath(new Point(currentPoint.x,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
+		System.out.println("Starting down path");
+        Point downPath = recursePath(edgePoints, new Point(currentPoint.x,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
         if (downPath != null)
         {
             return downPath;
         }
-        Point upPath = recursePath(new Point(currentPoint.x,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
+		System.out.println("Starting up path");
+        Point upPath = recursePath(edgePoints, new Point(currentPoint.x,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
         if (upPath != null)
         {
             return upPath;
         }
-        Point rightDownPath = recursePath(new Point(currentPoint.x+1,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
+		System.out.println("Starting down right path");
+        Point rightDownPath = recursePath(edgePoints, new Point(currentPoint.x+1,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
         if (rightDownPath != null)
         {
             return rightDownPath;
         }
-        Point rightUpPath = recursePath(new Point(currentPoint.x+1,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
+        System.out.println("Starting up right path");
+		Point rightUpPath = recursePath(edgePoints, new Point(currentPoint.x+1,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
         if (rightUpPath != null)
         {
             return rightUpPath;
         }
-        Point leftDownPath = recursePath(new Point(currentPoint.x-1,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
+        System.out.println("Starting down left path");
+		Point leftDownPath = recursePath(edgePoints, new Point(currentPoint.x-1,currentPoint.y+1,currentPoint),targetPoint, pathLength, image);
         if (leftDownPath != null)
         {
             return leftDownPath;
         }
-        Point leftUpPath = recursePath(new Point(currentPoint.x-1,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
+        System.out.println("Starting up left path");
+		Point leftUpPath = recursePath(edgePoints, new Point(currentPoint.x-1,currentPoint.y-1,currentPoint),targetPoint, pathLength, image);
         if (leftUpPath != null)
         {
             return leftUpPath;
@@ -425,12 +471,12 @@ public class OCRPracticeEdgeThinner {
     }
     
     // Returns the final point that this path includes yet all points in path contain a pointer to the previous point
-    private static Point pathExists(Point p, Point p2, File grayscale) {
+    private static Point pathExists(ArrayList<Point> edgePoints, Point p, Point p2, File grayscale) {
         try
         {
             BufferedImage image = ImageIO.read(grayscale);
             
-            return recursePath(p,p2,0,image);
+            return recursePath(edgePoints, p,p2,0,image);
         }
         catch (Exception e)
         {
@@ -444,12 +490,80 @@ public class OCRPracticeEdgeThinner {
         
         while (currentPoint != null && !currentPoint.equals(p))
         {
-            currentPoint.neighbers = 2;
+            currentPoint.neighbors = 2;
             edgePoints.add(currentPoint);
             currentPoint = currentPoint.previousPoint;
         }
     }
 
-    
+    private void recurseFindAllEndPoints(Item item)
+    {
+        // Base case: all endPoints are found minus the starting one
+        if (leafPoint.distancesList.size() == itemList.size() - 1)
+        {
+            System.out.println("All items have been found starting from position: (" + item.getX() + "," + item.getY() + ")");
+            return;
+        }
+
+        ArrayList<RecurseObject> NextBreadth = new ArrayList();
+
+        for (int i = 0; i < Breadth.size(); i++)
+        {
+            RecurseObject ro = Breadth.get(i);
+            int X = (int)(ro.X +.5);
+            int Y = (int)(ro.Y+.5);
+            double currentDistanceFromOrigin = ro.currentDistanceFromOrigin;
+
+            if (Y > grid.length || X > grid[0].length || Y < 0 || X < 0 || gridCopy[Y][X].equals("-1"))
+            {
+                continue;
+            }
+
+
+
+
+            // check if this spot has an item
+            if (Integer.parseInt(gridCopy[Y][X]) > 0 && !item.getId().equals(gridCopy[Y][X]))
+            {
+                Item foundItem = null;
+                String id = gridCopy[Y][X];
+                for (Item findItem : itemList)
+                {
+                    if (findItem.getId().equals(id))
+                    {
+                        foundItem = findItem;
+                    }
+                }
+
+                System.out.println("Found item " + id + " from origin item " + item.getId());
+                // add it to current item's distancesList
+                item.distancesList.add(new ItemDistance(foundItem,currentDistanceFromOrigin));
+            }
+            // mark spot as visited
+            gridCopy[Y][X] = "-1";
+
+            double sqrtTwo = 1.41421356237;
+            // Add every direction from here to next level of breadth
+            //-----------------------------------------------------------
+            //UP
+            if (Y > 0 && !gridCopy[Y-1][X].equals("-1")) NextBreadth.add(new RecurseObject(X, Y-1, currentDistanceFromOrigin+1));
+            //Down
+            if (Y < gridCopy[0].length-1 && !gridCopy[Y+1][X].equals("-1")) NextBreadth.add(new RecurseObject(X, Y+1, currentDistanceFromOrigin+1));
+            //RIGHT
+            if (X < gridCopy.length-1 && !gridCopy[Y][X+1].equals("-1")) NextBreadth.add(new RecurseObject(X+1, Y, currentDistanceFromOrigin+1));
+            //LEFT
+            if (X > 0 && !gridCopy[Y][X-1].equals("-1")) NextBreadth.add(new RecurseObject(X-1, Y, currentDistanceFromOrigin+1));
+            //TOP RIGHT
+            if (Y > 0 && X < gridCopy.length-1 && !gridCopy[Y-1][X+1].equals("-1")) NextBreadth.add(new RecurseObject(X+1, Y-1, currentDistanceFromOrigin+sqrtTwo));
+            //TOP LEFT
+            if (Y > 0 && X > 0 && !gridCopy[Y-1][X-1].equals("-1")) NextBreadth.add(new RecurseObject(X-1, Y-1, currentDistanceFromOrigin+sqrtTwo));
+            //BOTTOM RIGHT
+            if (Y < gridCopy[0].length-1 && X < gridCopy.length-1 && !gridCopy[Y+1][X+1].equals("-1")) NextBreadth.add(new RecurseObject(X+1, Y+1, currentDistanceFromOrigin+sqrtTwo));
+            //BOTTOM LEFT
+            if (Y < gridCopy[0].length-1 && X > 0 && !gridCopy[Y+1][X-1].equals("-1")) NextBreadth.add(new RecurseObject(X-1, Y+1, currentDistanceFromOrigin+sqrtTwo));
+        }
+        Breadth = NextBreadth;
+        recurseFindAllItems(item);
+    }
     
 }
